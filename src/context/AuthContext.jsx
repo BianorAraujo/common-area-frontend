@@ -4,9 +4,6 @@ import axios from "axios";
 
 export const AuthContext = createContext();
 
-// Define a URL do backend com base no ambiente
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,10 +11,16 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUser = async () => {
     try {
-      const res = await axios.get(`${API_URL}/auth/user`, { withCredentials: true });
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/auth/user`, { withCredentials: true });
       setUser(res.data);
-    } catch {
-      setUser(null);
+    } catch (err) {
+      if (err.response && err.response.status === 401) {
+        // Erro 401 é esperado quando o usuário não está autenticado, não logar no console
+        setUser(null);
+      } else {
+        console.error("Erro ao buscar usuário:", err);
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -29,7 +32,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.get(`${API_URL}/auth/logout`, { withCredentials: true });
+      await axios.get(`${import.meta.env.VITE_API_URL}/auth/logout`, { withCredentials: true });
       setUser(null);
       window.location.href = "/";
     } catch (err) {
