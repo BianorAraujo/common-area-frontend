@@ -7,6 +7,8 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import axios from "axios";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 function Dashboard() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -20,7 +22,7 @@ function Dashboard() {
   }, [user, building]);
 
   const fetchEvents = async () => {
-    const res = await axios.get(`http://localhost:3000/reservations/${building}`, {
+    const res = await axios.get(`${API_URL}/reservations/${building}`, {
       withCredentials: true,
     });
     setEvents(res.data);
@@ -36,7 +38,7 @@ function Dashboard() {
         userId: user.id,
         userName: user.name,
       };
-      await axios.post("http://localhost:3000/reservations", event, {
+      await axios.post(`${API_URL}/reservations`, event, {
         withCredentials: true,
       });
       fetchEvents();
@@ -46,7 +48,7 @@ function Dashboard() {
 
   const handleUpdateEvent = async (eventId, updatedEvent) => {
     await axios.put(
-      `http://localhost:3000/reservations/${eventId}`,
+      `${API_URL}/reservations/${eventId}`,
       { ...updatedEvent, userName: user.name },
       { withCredentials: true }
     );
@@ -54,7 +56,7 @@ function Dashboard() {
   };
 
   const handleDeleteEvent = async (eventId) => {
-    await axios.delete(`http://localhost:3000/reservations/${eventId}`, {
+    await axios.delete(`${API_URL}/reservations/${eventId}`, {
       data: { userName: user.name },
       withCredentials: true,
     });

@@ -3,6 +3,8 @@ import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 function History() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -14,7 +16,7 @@ function History() {
   }, [user]);
 
   const fetchHistory = async () => {
-    const res = await axios.get("http://localhost:3000/history", {
+    const res = await axios.get(`${API_URL}/history`, {
       withCredentials: true,
     });
     setHistory(res.data);
