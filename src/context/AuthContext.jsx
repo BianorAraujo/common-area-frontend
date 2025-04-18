@@ -11,7 +11,9 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUser = async () => {
     try {
+      console.log("Fazendo requisição para:", `${import.meta.env.VITE_API_URL}/auth/user`);
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/auth/user`, { withCredentials: true });
+      console.log("Resposta de /auth/user:", res.data);
       setUser(res.data);
     } catch (err) {
       if (err.response && err.response.status === 401) {
