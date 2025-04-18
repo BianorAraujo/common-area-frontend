@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import axios from "./axiosConfig";
+import axios from "./../axiosConfig";
 
 export const AuthContext = createContext();
 
