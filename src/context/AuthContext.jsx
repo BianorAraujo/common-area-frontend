@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import axios from "axios";
+import axios from "./axiosConfig";
 
 export const AuthContext = createContext();
 
@@ -12,7 +12,8 @@ export const AuthProvider = ({ children }) => {
   const fetchUser = async () => {
     try {
       console.log("Fazendo requisição para:", `${import.meta.env.VITE_API_URL}/auth/user`);
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/auth/user`, { withCredentials: true });
+      console.log("withCredentials configurado:", axios.defaults.withCredentials);
+      const res = await axios.get("/auth/user");
       console.log("Resposta de /auth/user:", res.data);
       setUser(res.data);
     } catch (err) {
@@ -34,7 +35,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.get(`${import.meta.env.VITE_API_URL}/auth/logout`, { withCredentials: true });
+      await axios.get("/auth/logout");
       setUser(null);
       window.location.href = "/";
     } catch (err) {
