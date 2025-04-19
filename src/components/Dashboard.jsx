@@ -5,9 +5,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import axios from "axios";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+import axios from "../axiosConfig"; // Use a instância configurada
 
 function Dashboard() {
   const { user, logout } = useContext(AuthContext);
@@ -17,15 +15,24 @@ function Dashboard() {
   const [newEvent, setNewEvent] = useState({ date: "", start: "", end: "" });
 
   useEffect(() => {
-    if (!user) navigate("/");
-    fetchEvents();
-  }, [user, building]);
+    if (!user) {
+      console.log("Usuário não autenticado, redirecionando para /");
+      navigate("/");
+    } else {
+      fetchEvents();
+    }
+  }, [user, building, navigate]);
 
   const fetchEvents = async () => {
-    const res = await axios.get(`${API_URL}/reservations/${building}`, {
-      withCredentials: true,
-    });
-    setEvents(res.data);
+    try {
+      console.log(`Buscando reservas para o prédio: ${building}`);
+      const res = await axios.get(`/reservations/${building}`);
+      console.log("Reservas recebidas:", res.data);
+      setEvents(res.data);
+    } catch (err) {
+      console.error("Erro ao buscar reservas:", err);
+      alert("Erro ao buscar reservas: " + (err.response?.data?.error || err.message));
+    }
   };
 
   const handleAddEvent = async () => {
@@ -38,29 +45,50 @@ function Dashboard() {
         userId: user.id,
         userName: user.name,
       };
-      await axios.post(`${API_URL}/reservations`, event, {
-        withCredentials: true,
-      });
-      fetchEvents();
-      setNewEvent({ date: "", start: "", end: "" });
+      try {
+        console.log("Enviando reserva:", event);
+        const res = await axios.post("/reservations", event);
+        console.log("Reserva criada:", res.data);
+        fetchEvents();
+        setNewEvent({ date: "", start: "", end: "" });
+        alert("Reserva criada com sucesso! ID: " + res.data.id);
+      } catch (err) {
+        console.error("Erro ao salvar reserva:", err);
+        alert("Erro ao salvar reserva: " + (err.response?.data?.error || err.message));
+      }
+    } else {
+      console.log("Campos obrigatórios ausentes:", newEvent);
+      alert("Por favor, preencha todos os campos.");
     }
   };
 
   const handleUpdateEvent = async (eventId, updatedEvent) => {
-    await axios.put(
-      `${API_URL}/reservations/${eventId}`,
-      { ...updatedEvent, userName: user.name },
-      { withCredentials: true }
-    );
-    fetchEvents();
+    try {
+      console.log(`Atualizando reserva ${eventId}:`, updatedEvent);
+      await axios.put(`/reservations/${eventId}`, {
+        ...updatedEvent,
+        userName: user.name,
+      });
+      console.log("Reserva atualizada com sucesso");
+      fetchEvents();
+    } catch (err) {
+      console.error("Erro ao atualizar reserva:", err);
+      alert("Erro ao atualizar reserva: " + (err.response?.data?.error || err.message));
+    }
   };
 
   const handleDeleteEvent = async (eventId) => {
-    await axios.delete(`${API_URL}/reservations/${eventId}`, {
-      data: { userName: user.name },
-      withCredentials: true,
-    });
-    fetchEvents();
+    try {
+      console.log(`Deletando reserva ${eventId}`);
+      await axios.delete(`/reservations/${eventId}`, {
+        data: { userName: user.name },
+      });
+      console.log("Reserva deletada com sucesso");
+      fetchEvents();
+    } catch (err) {
+      console.error("Erro ao deletar reserva:", err);
+      alert("Erro ao deletar reserva: " + (err.response?.data?.error || err.message));
+    }
   };
 
   return (
