@@ -1,3 +1,38 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.react-calendar {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.react-calendar__tile {
+  padding: 0.5rem;
+  text-align: center;
+  border-radius: 0.5rem;
+}
+
+.react-calendar__tile--active {
+  background: #1A3C34 !important;
+  color: white !important;
+}
+
+.react-calendar__navigation button {
+  color: #1F2A44;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+}
+
+.react-calendar__navigation button:hover {
+  background: #A8D5BA !important;
+  border-radius: 0.5rem;
+}
+
+/* Estilo personalizado para o dropdown */
+.custom-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%231F2A44' stroke-width='2'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1.5rem;
+  padding-right: 2.5rem; /* Espaço para a seta */
+}

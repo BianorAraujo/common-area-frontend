@@ -40,8 +40,8 @@ export const AuthProvider = ({ children }) => {
       console.log("Token encontrado na URL:", token);
       localStorage.setItem("jwt", token);
       // Limpar o parâmetro token da URL
-      console.log("Limpando parâmetro token da URL, redirecionando para:", location.pathname);
-      navigate(location.pathname, { replace: true });
+      console.log("Limpando parâmetro token da URL, redirecionando para: /select-building");
+      navigate("/select-building", { replace: true });
       fetchUser(token);
     } else {
       const storedToken = localStorage.getItem("jwt");
