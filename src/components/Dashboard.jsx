@@ -15,10 +15,11 @@ const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [startTime, setStartTime] = useState("8:00 AM");
-  const [endTime, setEndTime] = useState("9:00 AM");
+  const [endTime, setEndTime] = useState("11:00 PM");
   const [isAllDay, setIsAllDay] = useState(false);
   const [editingReservationId, setEditingReservationId] = useState(null);
   const [error, setError] = useState("");
+  const [isDayFullyBooked, setIsDayFullyBooked] = useState(false);
 
   const building = new URLSearchParams(location.search).get("building") || null;
 
@@ -47,15 +48,47 @@ const Dashboard = () => {
     }
   };
 
-  // Filtrar reservas por selectedDate
+  // Filtrar, ordenar reservas e verificar se o dia está completamente reservado
   useEffect(() => {
     const filterReservationsByDate = () => {
-      const selectedDateStr = selectedDate.toISOString().split("T")[0];
-      const filtered = reservations.filter((reservation) => {
-        const reservationDateStr = new Date(reservation.start).toISOString().split("T")[0];
-        return reservationDateStr === selectedDateStr;
-      });
+      const selectedDateStr = selectedDate.toLocaleDateString("en-CA"); // Formato YYYY-MM-DD
+      const filtered = reservations
+        .filter((reservation) => {
+          const reservationDateStr = new Date(reservation.start).toLocaleDateString("en-CA");
+          return reservationDateStr === selectedDateStr;
+        })
+        .sort((a, b) => new Date(a.start) - new Date(b.start));
+
+      // Verificar se o dia está completamente reservado (8:00 AM a 11:00 PM sem lacunas)
+      let fullyBooked = false;
+      if (filtered.length > 0) {
+        // Verificar se há uma única reserva "All Day" ou múltiplas reservas cobrindo o dia
+        const firstReservation = filtered[0];
+        const lastReservation = filtered[filtered.length - 1];
+        const startOfDay = new Date(selectedDate);
+        startOfDay.setHours(8, 0, 0, 0);
+        const endOfDay = new Date(selectedDate);
+        endOfDay.setHours(23, 0, 0, 0);
+
+        const startsAt8AM = new Date(firstReservation.start).getTime() === startOfDay.getTime();
+        const endsAt11PM = new Date(lastReservation.end).getTime() === endOfDay.getTime();
+
+        // Verificar se não há lacunas entre reservas
+        let noGaps = true;
+        for (let i = 0; i < filtered.length - 1; i++) {
+          const currentEnd = new Date(filtered[i].end).getTime();
+          const nextStart = new Date(filtered[i + 1].start).getTime();
+          if (currentEnd !== nextStart) {
+            noGaps = false;
+            break;
+          }
+        }
+
+        fullyBooked = startsAt8AM && endsAt11PM && noGaps;
+      }
+
       setFilteredReservations(filtered);
+      setIsDayFullyBooked(fullyBooked);
     };
     filterReservationsByDate();
   }, [reservations, selectedDate]);
@@ -66,9 +99,8 @@ const Dashboard = () => {
 
   const handleAddButtonClick = () => {
     setIsModalOpen(true);
-    setSelectedDate(new Date());
     setStartTime("8:00 AM");
-    setEndTime("9:00 AM");
+    setEndTime("11:00 PM");
     setIsAllDay(false);
     setEditingReservationId(null);
     setError("");
@@ -78,13 +110,13 @@ const Dashboard = () => {
     const start = new Date(reservation.start);
     const end = new Date(reservation.end);
     const isAllDayReservation =
-      start.getHours() === 0 &&
+      start.getHours() === 8 &&
       start.getMinutes() === 0 &&
       end.getHours() === 23 &&
-      end.getMinutes() === 59;
+      end.getMinutes() === 0;
 
     setIsModalOpen(true);
-    setSelectedDate(start);
+    setSelectedDate(new Date(reservation.start));
     setIsAllDay(isAllDayReservation);
     if (!isAllDayReservation) {
       setStartTime(
@@ -94,8 +126,8 @@ const Dashboard = () => {
         end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })
       );
     } else {
-      setStartTime("12:00 AM");
-      setEndTime("11:59 PM");
+      setStartTime("8:00 AM");
+      setEndTime("11:00 PM");
     }
     setEditingReservationId(reservation.id);
     setError("");
@@ -128,24 +160,23 @@ const Dashboard = () => {
   };
 
   const handleDateClick = (date) => {
-    setSelectedDate(date);
+    setSelectedDate(new Date(date.setHours(0, 0, 0, 0)));
   };
 
   const handleAddOrUpdateReservation = async () => {
     try {
-      const startDateTime = new Date(selectedDate);
-      let startHours, endHours;
+      const startDateTime = new Date(selectedDate.getTime());
+      startDateTime.setHours(0, 0, 0, 0);
+
+      let startHours, endHours, endMinutes;
 
       if (isAllDay) {
-        startHours = 0;
+        startHours = 8;
         endHours = 23;
-        startDateTime.setHours(0, 0, 0, 0);
-        const endDateTime = new Date(selectedDate);
-        endDateTime.setHours(23, 59, 0, 0);
-        if (endDateTime <= startDateTime) {
-          setError("Invalid time range");
-          return;
-        }
+        endMinutes = 0;
+        startDateTime.setHours(8, 0, 0, 0);
+        const endDateTime = new Date(startDateTime.getTime());
+        endDateTime.setHours(23, 0, 0, 0);
         const reservation = {
           building,
           start: startDateTime.toISOString(),
@@ -169,12 +200,17 @@ const Dashboard = () => {
           return { hours, minutes };
         };
         ({ hours: startHours } = parseTime(startTime));
-        const { hours: endHours, minutes: endMinutes } = parseTime(endTime);
+        ({ hours: endHours, minutes: endMinutes } = parseTime(endTime));
+        // Validar que os horários estão dentro do intervalo permitido
+        if (startHours < 8 || endHours > 23 || (endHours === 23 && endMinutes > 0)) {
+          setError("Reservations are only allowed between 8:00 AM and 11:00 PM.");
+          return;
+        }
         startDateTime.setHours(startHours, 0, 0, 0);
-        const endDateTime = new Date(selectedDate);
+        const endDateTime = new Date(startDateTime.getTime());
         endDateTime.setHours(endHours, endMinutes || 0, 0, 0);
-        if (endDateTime <= startDateTime) {
-          setError("End time must be after start time");
+        if (endDateTime < startDateTime) {
+          setError("End time must be after start time.");
           return;
         }
         const reservation = {
@@ -195,7 +231,7 @@ const Dashboard = () => {
 
       setIsModalOpen(false);
       setStartTime("8:00 AM");
-      setEndTime("9:00 AM");
+      setEndTime("11:00 PM");
       setIsAllDay(false);
       setEditingReservationId(null);
       setError("");
@@ -208,45 +244,57 @@ const Dashboard = () => {
 
   const generateTimeOptions = () => {
     const times = [];
-    for (let hour = 0; hour < 24; hour++) {
+    for (let hour = 8; hour <= 23; hour++) {
       const period = hour < 12 ? "AM" : "PM";
-      const displayHour = hour === 0 ? 12 : hour <= 12 ? hour : hour - 12;
+      const displayHour = hour <= 12 ? hour : hour - 12;
       const time = `${displayHour}:00 ${period}`;
       times.push(time);
     }
     return times;
   };
 
-  // Formatar data para input type="date" (YYYY-MM-DD)
   const formatDateForInput = (date) => {
-    return date.toISOString().split("T")[0];
+    return date.toLocaleDateString("en-CA");
   };
 
-  // Estilizar dias no calendário
   const getTileClassName = ({ date, view }) => {
     if (view !== "month") return "";
-    const dateStr = date.toISOString().split("T")[0];
-    const dayReservations = reservations.filter((reservation) => {
-      const reservationDateStr = new Date(reservation.start).toISOString().split("T")[0];
-      return reservationDateStr === dateStr;
-    });
+    const dateStr = date.toLocaleDateString("en-CA");
+    const dayReservations = reservations
+      .filter((reservation) => {
+        const reservationDateStr = new Date(reservation.start).toLocaleDateString("en-CA");
+        return reservationDateStr === dateStr;
+      })
+      .sort((a, b) => new Date(a.start) - new Date(b.start));
 
-    // Verificar se o dia está totalmente reservado (00:00 a 23:59)
-    const isFullyBooked = dayReservations.some((reservation) => {
-      const start = new Date(reservation.start);
-      const end = new Date(reservation.end);
-      return (
-        start.getHours() === 0 &&
-        start.getMinutes() === 0 &&
-        end.getHours() === 23 &&
-        end.getMinutes() === 59
-      );
-    });
+    // Verificar se o dia está completamente reservado (8:00 AM a 11:00 PM sem lacunas)
+    let isFullyBooked = false;
+    if (dayReservations.length > 0) {
+      const firstReservation = dayReservations[0];
+      const lastReservation = dayReservations[dayReservations.length - 1];
+      const startOfDay = new Date(date);
+      startOfDay.setHours(8, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 0, 0, 0);
 
-    // Verificar se o dia tem alguma reserva
+      const startsAt8AM = new Date(firstReservation.start).getTime() === startOfDay.getTime();
+      const endsAt11PM = new Date(lastReservation.end).getTime() === endOfDay.getTime();
+
+      let noGaps = true;
+      for (let i = 0; i < dayReservations.length - 1; i++) {
+        const currentEnd = new Date(dayReservations[i].end).getTime();
+        const nextStart = new Date(dayReservations[i + 1].start).getTime();
+        if (currentEnd !== nextStart) {
+          noGaps = false;
+          break;
+        }
+      }
+
+      isFullyBooked = startsAt8AM && endsAt11PM && noGaps;
+    }
+
     const hasReservations = dayReservations.length > 0;
 
-    // Estilos
     if (selectedDate.toDateString() === date.toDateString()) {
       return "bg-vesta-dark text-white rounded-lg";
     }
@@ -354,9 +402,14 @@ const Dashboard = () => {
             </h1>
             <button
               onClick={handleAddButtonClick}
-              className="bg-vesta-dark text-white py-2 px-4 rounded-xl hover:bg-vesta-dark-hover transition-all duration-300 hover:scale-105"
+              disabled={isDayFullyBooked}
+              className={`py-2 px-4 rounded-xl transition-all duration-300 ${
+                isDayFullyBooked
+                  ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                  : "bg-vesta-dark text-white hover:bg-vesta-dark-hover hover:scale-105"
+              }`}
             >
-              Add Reservation
+              + Add
             </button>
           </div>
 
@@ -377,87 +430,91 @@ const Dashboard = () => {
             <table className="min-w-full divide-y divide-gray-100">
               <thead className="bg-vesta-dark shadow-inner">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">ID</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">User</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Start Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">End Time</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Time</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredReservations.length > 0 ? (
-                  filteredReservations.map((reservation, index) => (
-                    <tr
-                      key={reservation.id}
-                      className={`transition-colors duration-200 ${
-                        index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                      } hover:bg-vesta-light/20`}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">{reservation.id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">{reservation.userName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
-                        {new Date(reservation.start).toLocaleTimeString([], {
+                  filteredReservations.map((reservation, index) => {
+                    const start = new Date(reservation.start);
+                    const end = new Date(reservation.end);
+                    const isAllDayReservation =
+                      start.getHours() === 8 &&
+                      start.getMinutes() === 0 &&
+                      end.getHours() === 23 &&
+                      end.getMinutes() === 0;
+                    const timeDisplay = isAllDayReservation
+                      ? "All Day"
+                      : `${start.toLocaleTimeString([], {
                           hour: "numeric",
                           minute: "2-digit",
                           hour12: true,
-                        })}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
-                        {new Date(reservation.end).toLocaleTimeString([], {
+                        })} - ${end.toLocaleTimeString([], {
                           hour: "numeric",
                           minute: "2-digit",
                           hour12: true,
-                        })}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleEditReservation(reservation)}
-                            className="text-vesta-text hover:text-vesta-dark"
-                            title="Edit"
-                          >
-                            <svg
-                              className="h-5 w-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                              xmlns="http://www.w3.org/2000/svg"
+                        })}`;
+                    return (
+                      <tr
+                        key={reservation.id}
+                        className={`transition-colors duration-200 ${
+                          index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                        } hover:bg-vesta-light/20`}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">{reservation.userName}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">{timeDisplay}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEditReservation(reservation)}
+                              className="text-vesta-text hover:text-vesta-dark"
+                              title="Edit"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteReservation(reservation.id)}
-                            className="text-vesta-text hover:text-red-600"
-                            title="Delete"
-                          >
-                            <svg
-                              className="h-5 w-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                              xmlns="http://www.w3.org/2000/svg"
+                              <svg
+                                className="h-5 w-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2"
+                                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteReservation(reservation.id)}
+                              className="text-vesta-text hover:text-red-600"
+                              title="Delete"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5-4h4M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                              <svg
+                                className="h-5 w-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2"
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5-4h4M4 7h16"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
+                    <td colSpan="3" className="px-6 py-4 text-center text-sm text-gray-500">
                       No reservations for this day
                     </td>
                   </tr>
@@ -484,7 +541,7 @@ const Dashboard = () => {
                 type="date"
                 id="reservation-date"
                 value={formatDateForInput(selectedDate)}
-                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                onChange={(e) => setSelectedDate(new Date(e.target.value + "T00:00:00"))}
                 className="p-3 rounded-xl border border-gray-200 w-full bg-white focus:ring-2 focus:ring-vesta-light focus:border-vesta-dark transition-all duration-300"
               />
             </div>
