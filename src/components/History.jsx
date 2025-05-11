@@ -2,6 +2,9 @@ import { useContext, useState, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import axios from "../axiosConfig";
+import Navbar from "./dashboard/Navbar";
+import MobileMenu from "./dashboard/MobileMenu";
+import toast, { Toaster } from "react-hot-toast";
 
 const History = () => {
   const { user, logout } = useContext(AuthContext);
@@ -29,7 +32,15 @@ const History = () => {
       setHistory(res.data);
     } catch (err) {
       console.error("Error fetching history:", err);
-      alert("Error fetching history: " + (err.response?.data?.error || err.message));
+      toast.error(err.response?.data?.error || "Failed to load history. Please try again.", {
+        style: {
+          background: "#FEE2E2",
+          color: "#991B1B",
+          fontSize: "14px",
+          padding: "12px",
+          borderRadius: "8px",
+        },
+      });
     }
   };
 
@@ -46,103 +57,104 @@ const History = () => {
       case "delete":
         return "Deleted";
       default:
-        return action;
+        return action || "N/A";
     }
+  };
+
+  const formatTimeDisplay = (eventDetails) => {
+    try {
+      const { start, end } = JSON.parse(eventDetails);
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      const isAllDayReservation =
+        startDate.getHours() === 8 &&
+        startDate.getMinutes() === 0 &&
+        endDate.getHours() === 23 &&
+        endDate.getMinutes() === 0;
+      return isAllDayReservation
+        ? "All Day"
+        : `${startDate.toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          })} - ${endDate.toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          })}`;
+    } catch (err) {
+      console.error("Error parsing eventDetails:", err);
+      return "Invalid Time";
+    }
+  };
+
+  const formatDate = (eventDetails) => {
+    try {
+      const { start } = JSON.parse(eventDetails);
+      return new Date(start).toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    } catch (err) {
+      console.error("Error parsing eventDetails for date:", err);
+      return "N/A";
+    }
+  };
+
+  const onExportError = (errorMessage) => {
+    toast.error(errorMessage, {
+      style: {
+        background: "#FEE2E2",
+        color: "#991B1B",
+        fontSize: "14px",
+        padding: "12px",
+        borderRadius: "8px",
+      },
+    });
+  };
+
+  const onExportSuccess = () => {
+    toast.success("Worksheet exported successfully.", {
+      style: {
+        background: "#DCFCE7",
+        color: "#166534",
+        fontSize: "14px",
+        padding: "12px",
+        borderRadius: "8px",
+      },
+    });
   };
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Navbar */}
-      <nav className="bg-gray-50 shadow-sm p-4 flex justify-between items-center">
-        {/* Botão de Voltar */}
-        <button
-          onClick={() => navigate(-1)}
-          className="text-vesta-text hover:text-vesta-light transition-colors duration-300"
-          title="Back to previous page"
-        >
-          <svg
-            className="w-7 h-7"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-        </button>
-
-        {/* Nome do Usuário */}
-        <div className="text-lg font-medium text-vesta-text">
-          Hi, {user?.name || "User"}
-        </div>
-
-        {/* Botões em Desktop */}
-        <div className="hidden sm:flex items-center space-x-3">
-          <button
-            onClick={() => navigate("/history")}
-            className="bg-vesta-dark text-white py-2 px-4 rounded-xl hover:bg-vesta-dark-hover transition-all duration-300 hover:scale-105"
-          >
-            History
-          </button>
-          <button
-            onClick={logout}
-            className="bg-red-600 text-white py-2 px-4 rounded-xl border border-red-600/20 hover:bg-red-700 hover:border-red-700/20 transition-all duration-300 hover:scale-105"
-          >
-            Logout
-          </button>
-        </div>
-
-        {/* Botão Sanduíche em Mobile */}
-        <div className="sm:hidden">
-          <button onClick={toggleMenu} className="text-vesta-text hover:text-vesta-light transition-colors duration-300">
-            <svg
-              className="w-7 h-7"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
-          </button>
-        </div>
-      </nav>
-
-      {/* Menu Dropdown em Mobile */}
-      {isMenuOpen && (
-        <div className="sm:hidden bg-gray-50 shadow-lg p-4 absolute top-16 right-4 rounded-xl z-10">
-          <button
-            onClick={() => {
-              navigate("/history");
-              setIsMenuOpen(false);
-            }}
-            className="block w-full text-left text-vesta-text py-2 px-4 hover:bg-vesta-light/20 rounded transition-colors duration-300"
-          >
-            History
-          </button>
-          <button
-            onClick={() => {
-              logout();
-              setIsMenuOpen(false);
-            }}
-            className="block w-full text-left text-red-600 py-2 px-4 hover:bg-vesta-light/20 rounded transition-colors duration-300"
-          >
-            Logout
-          </button>
-        </div>
-      )}
-
-      {/* Conteúdo Principal */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+        }}
+      />
+      <Navbar
+        user={user}
+        logout={logout}
+        toggleMenu={toggleMenu}
+        formatAction={formatAction}
+        formatDate={formatDate}
+        formatTimeDisplay={formatTimeDisplay}
+        onExportError={onExportError}
+        onExportSuccess={onExportSuccess}
+      />
+      <MobileMenu
+        isMenuOpen={isMenuOpen}
+        navigate={navigate}
+        logout={logout}
+        setIsMenuOpen={setIsMenuOpen}
+        formatAction={formatAction}
+        formatDate={formatDate}
+        formatTimeDisplay={formatTimeDisplay}
+        onExportError={onExportError}
+        onExportSuccess={onExportSuccess}
+      />
       <div className="flex-grow p-6">
         <div className="max-w-5xl mx-auto">
           <h1 className="text-xl font-semibold text-vesta-text mb-6">Reservation History</h1>
@@ -181,13 +193,12 @@ const History = () => {
             <table className="min-w-full divide-y divide-gray-100">
               <thead className="bg-vesta-dark shadow-inner">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Action</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Owner</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Building</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Start Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">End Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">User Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Time</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">Scheduled By</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -199,37 +210,30 @@ const History = () => {
                         key={`${entry.eventId}-${entry.timestamp}`}
                         className={`transition-colors duration-200 ${index % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-vesta-light/20`}
                       >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">{entry.eventId}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">{details.building || "N/A"}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
-                          {details.start ? new Date(details.start).toLocaleDateString() : "N/A"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
-                          {details.start
-                            ? new Date(details.start).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : "N/A"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
-                          {details.end
-                            ? new Date(details.end).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : "N/A"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">{entry.userName}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
                           {formatAction(entry.action)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
+                          {details.ownerName || "N/A"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
+                          {details.building || "N/A"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
+                          {formatDate(entry.eventDetails)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
+                          {formatTimeDisplay(entry.eventDetails)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-vesta-text">
+                          {entry.userName || "N/A"}
                         </td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
+                    <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">
                       No history available
                     </td>
                   </tr>
